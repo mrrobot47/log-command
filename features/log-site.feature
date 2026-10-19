@@ -348,6 +348,8 @@ Feature: ee log show for a single site (type filters, line count, following)
     Then STDOUT should contain "GET /bh-log-command-access-probe"
       And the command should still be running when the timeout expires
 
+  # CORE-3: the logger is chosen before the config is parsed, so --quiet never takes effect.
+  @known-bug
   Scenario: --quiet hides the "watching logfile" lines but still follows
     Given the site "bh-log-command-1.test" of type "html" exists
     When I run "bin/ee log show bh-log-command-1.test --nginx --quiet" with a timeout of 8 seconds

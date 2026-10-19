@@ -43,7 +43,7 @@ The package registers one command, `ee log`, with one subcommand, `show` (there 
 | Shell injection via `--n` or a log file name | Unescaped `system()` (LOGCMD-1) | log-site `@known-bug` "--n is not interpreted by the shell", "A log file name is not interpreted by the shell" |
 | Following (`tail -f`) | New lines stream until killed | log-site "New lines are streamed while following"; every happy path asserts exit 124 (still running at the timeout) |
 | Real nginx access log entry | HTTP request appears in `--access` output | log-site "A real request shows up in the nginx access log" |
-| "watching logfile" lines | `EE::log`, path shown relative to the sites dir; hidden by `--quiet` | all happy paths; log-site "--quiet hides…" |
+| "watching logfile" lines | `EE::log`, path shown relative to the sites dir; should be hidden by `--quiet`, isn't (core CORE-3) | all happy paths; log-site `@known-bug` "--quiet hides…" |
 | `--cli` | Follows `{EE_ROOT_DIR}/logs/ee.log`; the "watching logfile" line is also written to ee.log (side effect) | log-global "--cli follows EasyEngine's own log" |
 | `--cli` with a site name / type flags | Both ignored | log-global "--cli ignores a site name and type flags" |
 | `--global` | ee.log + nginx/php/wp logs of every site | log-global "--global follows ee.log and the logs of every site type" |
@@ -72,10 +72,11 @@ Estimated coverage: about 95% of the branches of `Log_Command` (every branch exc
 - LOGCMD-6 (Low): help says `--global` includes "all services" and `--all` "service logs", but no service logs (nginx-proxy, local mariadb) are followed. The docblock examples also show wrong paths (`~/easyengine/sites/example.com/logs/debug.log`).
 - LOGCMD-7 (Low): `pathinfo()['extension']` read without `isset()`: a file without extension in a log dir raises a PHP warning.
 - LOGCMD-8 (Low, site-command helper): `auto_site_name()` accepts `http(s)://<site>/` but returns the args unchanged, so `get_site_info()` fails with "Site http://… does not exist."; site-command's own subcommands use the same pair.
+- CORE-3 (Low, core): the logger is set up before the config and arguments are parsed, so `--quiet` never hides the "watching logfile" lines (found on the CI runner, https://github.com/mrrobot47/log-command/actions/runs/36085159478).
 
 ## Tags and runtime
 
-- `@known-bug`: 10 scenarios (9 definitions, one outline with 2 examples). Exclude with `--tags='~@known-bug'`.
+- `@known-bug`: 11 scenarios (10 definitions, one outline with 2 examples). Exclude with `--tags='~@known-bug'`.
 - No `@le`, `@remote` or `@destructive` scenarios: the command needs no public DNS or backups and changes no global state.
 - Sites (prefix `bh-log-command-`, deleted by `@AfterFeature`, which only touches that prefix): `-1` html, `-2` php, `-3` wp, `-4` html (disabled), `-99` guaranteed absent. Sites are created lazily by `Given the site … of type … exists`, so each scenario runs on its own and only the first scenario of a feature pays for creation.
 - Every `ee log show` run is wrapped in `timeout` (own process group, so `tail` dies too); exit 124 means "still following".
