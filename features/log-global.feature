@@ -76,8 +76,7 @@ Feature: ee log show --cli and --global
 
   # LOGCMD-4: in the --global loop $wp_logs_path is only assigned for WordPress sites, so a non-WordPress site
   # before the first WordPress site hits an undefined variable (later ones reuse a stale path). Only exposed while
-  # the html site's DB row precedes the wp site's (true when the feature runs in order).
-  @known-bug
+  # the html site's DB row precedes the wp site's (true when the feature runs in order). Fixed with LOGCMD-9.
   Scenario: --global raises no PHP warnings for non-WordPress sites
     Given the site "bh-log-command-1.test" of type "html" exists
       And the site "bh-log-command-3.test" of type "wp" exists

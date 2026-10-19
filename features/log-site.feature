@@ -330,6 +330,36 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should contain "bh-inj-marker"
       And the command should still be running when the timeout expires
 
+  # LOGCMD-9: the site's containers can write to its log directories and wp-content, and ee log show runs tail as
+  # root on the host, so a link planted there must not be followed out of the directory.
+  Scenario Outline: A log link that leaves the site's log directory is skipped
+    Given the site "<site>" of type "<type>" exists
+      And the file "{SITES_DIR}/<site>/<link>" is a link to a file outside the site containing "bh-outside-marker"
+    When I run "bin/ee log show <site> <flag>" with a timeout of 8 seconds
+    Then STDOUT should not contain "bh-outside-marker"
+      And STDOUT should not contain "watching logfile <site>/<link>"
+      And STDERR should contain "Warning: Skipping <site>/<link>: it is not a regular file inside the log directory."
+      And the command should still be running when the timeout expires
+
+    Examples:
+      | site                  | type | link                             | flag    |
+      | bh-log-command-2.test | php  | logs/php/bh-outside.log          | --php   |
+      | bh-log-command-1.test | html | logs/nginx/bh-sub/bh-outside.log | --nginx |
+      | bh-log-command-3.test | wp   | app/htdocs/wp-content/debug.log  | --all   |
+
+  Scenario: A log link inside the site's log directory is still followed
+    Given the site "bh-log-command-1.test" of type "html" exists
+      And the file "{SITES_DIR}/bh-log-command-1.test/logs/nginx/bh-real.log" contains:
+      """
+      bh-inside-marker
+      """
+      And the file "{SITES_DIR}/bh-log-command-1.test/logs/nginx/bh-current.log" is a link to "bh-real.log"
+    When I run "bin/ee log show bh-log-command-1.test --nginx" with a timeout of 8 seconds
+    Then STDOUT should contain "watching logfile bh-log-command-1.test/logs/nginx/bh-current.log"
+      And STDOUT should contain "watching logfile bh-log-command-1.test/logs/nginx/bh-real.log"
+      And STDERR should not contain "Skipping"
+      And the command should still be running when the timeout expires
+
   Scenario: New lines are streamed while following
     Given the site "bh-log-command-1.test" of type "html" exists
       And the file "{SITES_DIR}/bh-log-command-1.test/logs/nginx/bh-follow.log" contains:

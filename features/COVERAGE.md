@@ -43,6 +43,7 @@ The package registers one command, `ee log`, with one subcommand, `show` (there 
 | Shell injection via `--n` or a log file name | tail runs without a shell (LOGCMD-1, fixed on `fix/escape-log-tail`) | log-site "--n is not interpreted by the shell", "A log file name is not interpreted by the shell" |
 | Following (`tail -f`) | New lines stream until killed | log-site "New lines are streamed while following"; every happy path asserts exit 124 (still running at the timeout) |
 | Real nginx access log entry | HTTP request appears in `--access` output | log-site "A real request shows up in the nginx access log" |
+| Links in a site log directory | Followed only if the real path is a regular file inside the log directory (the app volume for `debug.log`), otherwise skipped with a warning (LOGCMD-9, fixed on `fix/log-symlink-escape`) | log-site outline "A log link that leaves the site's log directory is skipped" (php `logs/php`, html nested `logs/nginx`, wp `debug.log`), "A log link inside the site's log directory is still followed" |
 | "watching logfile" lines | `EE::log`, path shown relative to the sites dir; should be hidden by `--quiet`, isn't (core CORE-3) | all happy paths; log-site `@known-bug` "--quiet hides…" |
 | `--cli` | Follows `{EE_ROOT_DIR}/logs/ee.log`; the "watching logfile" line is also written to ee.log (side effect) | log-global "--cli follows EasyEngine's own log" |
 | `--cli` with a site name / type flags | Both ignored | log-global "--cli ignores a site name and type flags" |
@@ -50,7 +51,7 @@ The package registers one command, `ee log`, with one subcommand, `show` (there 
 | `--global`, WP site without debug.log | Warning, keeps following | log-global "--global warns for a WordPress site…" |
 | `--global` with `--cli` and a (nonexistent) site name | `--global` wins, site name ignored (documents current behaviour) | log-global "--global takes precedence…" |
 | `--global` and disabled sites | Included | log-global "--global includes disabled sites" |
-| `--global` undefined `$wp_logs_path` | PHP warning (LOGCMD-4) | log-global `@known-bug` "--global raises no PHP warnings…" |
+| `--global` undefined `$wp_logs_path` | No PHP warning (LOGCMD-4, fixed on `fix/log-symlink-escape`) | log-global "--global raises no PHP warnings…" |
 | `--global` with type filters | Filters ignored (LOGCMD-5) | log-global `@known-bug` "--global honours a type filter" |
 | Service logs (help promises them for `--global`/`--all`) | Never followed (LOGCMD-6) | log-global `@known-bug` "--global includes the global nginx-proxy logs" |
 | `--cli`/`--global` "cli log doesn't exist!" and global "No logs found!" | Not covered: unreachable, ee's file logger creates ee.log before the command runs | – |
@@ -67,17 +68,18 @@ Estimated coverage: about 95% of the branches of `Log_Command` (every branch exc
 - LOGCMD-1 (High): `--n` and the file list were interpolated unescaped into `system( "tail -n $lines -f $final_string" )`. `logs/php` is writable by www-data in the php container, so a planted file name like `x$(cmd).log` ran as root on the host when the admin followed the logs. Fixed on `fix/escape-log-tail` (not merged yet); its scenarios are no longer `@known-bug`, so they fail against a develop without the fix.
 - LOGCMD-2 (Low): `--n` was not validated and tail's exit status was ignored, so invalid values or tail failures exited 0. Fixed with LOGCMD-1.
 - LOGCMD-3 (Low): `unset( $final_types['php'], $final_types['wp'] )` targets string keys of a list, so it is a no-op; html/php sites follow a `wp-content/debug.log` (and an html site would follow `logs/php`).
-- LOGCMD-4 (Low): `--global`: `$wp_logs_path` is only set for WP sites, so a non-WP site before the first WP site raises an undefined-variable warning and later ones reuse a stale path.
+- LOGCMD-4 (Low): `--global`: `$wp_logs_path` is only set for WP sites, so a non-WP site before the first WP site raises an undefined-variable warning and later ones reuse a stale path. Fixed on `fix/log-symlink-escape` (with LOGCMD-9, on top of `fix/escape-log-tail`); its scenario is no longer `@known-bug`.
 - LOGCMD-5 (Low): `--global` ignores `--nginx/--php/--wp/--access/--error` (`$final_types` unused), and it also probes nonexistent `logs/access` and `logs/error` directories.
 - LOGCMD-6 (Low): help says `--global` includes "all services" and `--all` "service logs", but no service logs (nginx-proxy, local mariadb) are followed. The docblock examples also show wrong paths (`~/easyengine/sites/example.com/logs/debug.log`).
 - LOGCMD-7 (Low): `pathinfo()['extension']` read without `isset()`: a file without extension in a log dir raises a PHP warning.
 - LOGCMD-8 (Low, site-command helper): `auto_site_name()` accepts `http(s)://<site>/` but returns the args unchanged, so `get_site_info()` fails with "Site http://… does not exist."; site-command's own subcommands use the same pair.
+- LOGCMD-9 (Low): links in a site log directory (writable by the site's containers) were followed by the root `tail` on the host. Fixed on `fix/log-symlink-escape`; covered by regular scenarios that fail on a develop without the fix.
 - CORE-3 (Low, core): the logger is set up before the config and arguments are parsed, so `--quiet` never hides the "watching logfile" lines (found on the CI runner, https://github.com/mrrobot47/log-command/actions/runs/36085159478).
 
 ## Tags and runtime
 
-- `@known-bug`: 8 scenarios (7 definitions, one outline with 2 examples). Exclude with `--tags='~@known-bug'`.
+- `@known-bug`: 7 scenarios (6 definitions, one outline with 2 examples). Exclude with `--tags='~@known-bug'`.
 - No `@le`, `@remote` or `@destructive` scenarios: the command needs no public DNS or backups and changes no global state.
 - Sites (prefix `bh-log-command-`, deleted by `@AfterFeature`, which only touches that prefix): `-1` html, `-2` php, `-3` wp, `-4` html (disabled), `-99` guaranteed absent. Sites are created lazily by `Given the site … of type … exists`, so each scenario runs on its own and only the first scenario of a feature pays for creation.
 - Every `ee log show` run is wrapped in `timeout` (own process group, so `tail` dies too); exit 124 means "still following".
-- Estimated runtime: about 12 minutes (site creation ~4 minutes over the three features, WordPress dominating; 55 scenarios at 3–10 s each).
+- Estimated runtime: about 12 minutes (site creation ~4 minutes over the three features, WordPress dominating; 59 scenarios at 3–10 s each).

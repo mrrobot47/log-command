@@ -677,6 +677,38 @@ class FeatureContext implements Context
 	}
 
 	/**
+	 * Plants a link the way the site's own containers could, pointing at a marker file outside the site.
+	 *
+	 * @Given the file :path is a link to a file outside the site containing :text
+	 */
+	public function theFileIsALinkToAFileOutsideTheSite( $path, $text )
+	{
+		$path = $this->expand( $path );
+		self::assertOwnPath( $path );
+		$this->makeDir( dirname( $path ) );
+		$target = tempnam( sys_get_temp_dir(), 'bh-log-outside-' );
+		$this->created_paths[] = $target;
+		if ( false === file_put_contents( $target, $text . "\n" ) || ! symlink( $target, $path ) ) {
+			throw new Exception( "Could not link $path to $target" );
+		}
+		$this->created_paths[] = $path;
+	}
+
+	/**
+	 * @Given the file :path is a link to :target
+	 */
+	public function theFileIsALinkTo( $path, $target )
+	{
+		$path = $this->expand( $path );
+		self::assertOwnPath( $path );
+		$this->makeDir( dirname( $path ) );
+		if ( ! symlink( $this->expand( $target ), $path ) ) {
+			throw new Exception( "Could not link $path to $target" );
+		}
+		$this->created_paths[] = $path;
+	}
+
+	/**
 	 * @Given the file :path does not exist
 	 */
 	public function theFileDoesNotExist( $path )
