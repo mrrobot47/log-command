@@ -778,7 +778,14 @@ class FeatureContext implements Context
 		if ( ! is_dir( $dir ) ) {
 			throw new Exception( "Directory $dir does not exist." );
 		}
-		$command = preg_replace( '#(^|\s)bin/ee(?=\s|$)#', '$1' . $this->ee_path . '/bin/ee', $command );
+		$ee      = escapeshellarg( $this->ee_path . '/bin/ee' );
+		$command = preg_replace_callback(
+			'#(^|\s)bin/ee(?=\s|$)#',
+			function ( $m ) use ( $ee ) {
+				return $m[1] . $ee;
+			},
+			$command
+		);
 
 		$this->commands[] = $this->launchWithTimeout( $command, $seconds, $dir );
 	}
