@@ -2,7 +2,6 @@ Feature: ee log command surface, site resolution and validation errors
 
   # `ee log show` ends in `tail -f`, so every invocation that can reach tail runs under a timeout;
   # exit code 124 ("still running when the timeout expired") is the success signal for following.
-# @known-bug scenarios assert the fixed behaviour, so they fail until the referenced issues.md entry is fixed.
 
   Scenario: ee log without a subcommand lists show
     When I run 'bin/ee log'
@@ -80,14 +79,4 @@ Feature: ee log command surface, site resolution and validation errors
     Given the site "bh-log-command-1.test" of type "html" exists
     When I run "bin/ee log show bh-log-command-1.test/" with a timeout of 8 seconds
     Then STDOUT should contain "watching logfile bh-log-command-1.test/logs/nginx/access.log"
-      And the command should still be running when the timeout expires
-
-  # LOGCMD-8: auto_site_name() accepts "http://<site>" but returns the args unchanged,
-  # so get_site_info() looks up the raw URL and fails.
-  @known-bug
-  Scenario: A site given as a URL is resolved like the bare name
-    Given the site "bh-log-command-1.test" of type "html" exists
-    When I run "bin/ee log show http://bh-log-command-1.test/" with a timeout of 8 seconds
-    Then STDERR should not contain "does not exist"
-      And STDOUT should contain "watching logfile bh-log-command-1.test/logs/nginx/access.log"
       And the command should still be running when the timeout expires

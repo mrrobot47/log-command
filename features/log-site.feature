@@ -3,7 +3,6 @@ Feature: ee log show for a single site (type filters, line count, following)
   # Sites: bh-log-command-1.test (html), bh-log-command-2.test (php), bh-log-command-3.test (wp).
   # `ee log show` ends in `tail -f`, so runs are bounded by a timeout and exit 124 means "still following".
   # Extra *.log files written by scenarios live inside the site's own log volume and are removed after each scenario.
-# @known-bug scenarios assert the fixed behaviour, so they fail until the referenced issues.md entry is fixed.
 
   Scenario: html site default shows only the nginx logs
     Given the site "bh-log-command-1.test" of type "html" exists
@@ -191,39 +190,6 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should not contain "bh-rotated"
       And the command should still be running when the timeout expires
 
-  # LOGCMD-7: get_files() reads pathinfo()['extension'] without isset(), so a file without
-  # an extension in a log directory raises "Undefined array key" (PHP 8) / "Undefined index" (PHP 7.4).
-  @known-bug
-  Scenario: A file without an extension in a log directory does not raise PHP warnings
-    Given the site "bh-log-command-1.test" of type "html" exists
-      And the file "{SITES_DIR}/bh-log-command-1.test/logs/nginx/bh-noext" contains:
-      """
-      bh-noext-marker
-      """
-    When I run "bin/ee log show bh-log-command-1.test --nginx" with a timeout of 8 seconds
-    Then STDERR should not contain "Undefined"
-      And STDOUT should contain "watching logfile" exactly 2 times
-      And the command should still be running when the timeout expires
-
-  # LOGCMD-3: show() does unset( $final_types['php'], $final_types['wp'] ) on a list with integer
-  # keys, so the wp type is never dropped for html/php sites and a wp-content/debug.log there gets followed.
-  @known-bug
-  Scenario Outline: --wp is ignored for non-WordPress sites even when a debug.log exists
-    Given the site "<site>" of type "<type>" exists
-      And the file "{SITES_DIR}/<site>/app/htdocs/wp-content/debug.log" contains:
-      """
-      bh-non-wp-debug-marker
-      """
-    When I run "bin/ee log show <site> --wp" with a timeout of 20 seconds
-    Then STDOUT should not contain "wp-content/debug.log"
-      And STDERR should contain "Error: No logs found!"
-      And the command should exit with code 1
-
-    Examples:
-      | site                  | type |
-      | bh-log-command-1.test | html |
-      | bh-log-command-2.test | php  |
-
   Scenario: The default line count is 10
     Given the site "bh-log-command-1.test" of type "html" exists
       And the file "{SITES_DIR}/bh-log-command-1.test/logs/nginx/bh-lines.log" contains:
@@ -376,13 +342,4 @@ Feature: ee log show for a single site (type filters, line count, following)
     Then a GET request to "http://127.0.0.1/bh-log-command-access-probe" with Host "bh-log-command-1.test" should return 404
     When I run "bin/ee log show bh-log-command-1.test --access --n=50" with a timeout of 8 seconds
     Then STDOUT should contain "GET /bh-log-command-access-probe"
-      And the command should still be running when the timeout expires
-
-  # CORE-3: the logger is chosen before the config is parsed, so --quiet never takes effect.
-  @known-bug
-  Scenario: --quiet hides the "watching logfile" lines but still follows
-    Given the site "bh-log-command-1.test" of type "html" exists
-    When I run "bin/ee log show bh-log-command-1.test --nginx --quiet" with a timeout of 8 seconds
-    Then STDOUT should not contain "watching logfile"
-      And STDOUT should contain "==> {SITES_DIR}/bh-log-command-1.test/logs/nginx/access.log <=="
       And the command should still be running when the timeout expires

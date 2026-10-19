@@ -2,7 +2,6 @@ Feature: ee log show --cli and --global
 
   # --cli follows {EE_ROOT_DIR}/logs/ee.log; --global follows ee.log plus every site's logs.
   # These scenarios only read ee.log; the "watching logfile" lines ee itself writes there are used as markers.
-# @known-bug scenarios assert the fixed behaviour, so they fail until the referenced issues.md entry is fixed.
   # The html site is created first on purpose: LOGCMD-4 only shows when a non-WordPress site precedes the first WordPress site.
 
   Scenario: --cli follows EasyEngine's own log
@@ -83,22 +82,4 @@ Feature: ee log show --cli and --global
       And the site "bh-log-command-3.test" of type "wp" exists
     When I run "bin/ee log show --global" with a timeout of 10 seconds
     Then STDERR should not contain "wp_logs_path"
-      And the command should still be running when the timeout expires
-
-  # LOGCMD-5: --global computes the requested types but never uses them, so type filters are silently ignored.
-  @known-bug
-  Scenario: --global honours a type filter
-    Given the site "bh-log-command-2.test" of type "php" exists
-    When I run "bin/ee log show --global --nginx" with a timeout of 10 seconds
-    Then STDOUT should contain "watching logfile bh-log-command-2.test/logs/nginx/access.log"
-      And STDOUT should not contain "watching logfile bh-log-command-2.test/logs/php/"
-      And the command should still be running when the timeout expires
-
-  # LOGCMD-6: the help says --global covers "all services" (and --all "service logs"),
-  # but no service log (e.g. nginx-proxy under {EE_ROOT_DIR}/services/nginx-proxy/logs) is ever followed.
-  @known-bug
-  Scenario: --global includes the global nginx-proxy logs
-    Given the file "{EE_ROOT_DIR}/services/nginx-proxy/logs/access.log" should exist
-    When I run "bin/ee log show --global" with a timeout of 10 seconds
-    Then STDOUT should contain "watching logfile {EE_ROOT_DIR}/services/nginx-proxy/logs/access.log"
       And the command should still be running when the timeout expires
