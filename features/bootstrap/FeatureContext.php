@@ -570,9 +570,12 @@ class FeatureContext implements Context
 	 */
 	private function launchWithTimeout( $command, $seconds, $cwd = null, $before = '' )
 	{
+		// proc_open's cwd resolves symlinks (a site's app/ links to a docker volume), so also pass the
+		// logical path as PWD, like an interactive `cd` would; get_site_name() matches on it.
 		$timed = sprintf(
-			'timeout -k 5 %d env BEHAT_RUN=1 sh -c %s',
+			'timeout -k 5 %d env BEHAT_RUN=1%s sh -c %s',
 			(int) $seconds,
+			null === $cwd ? '' : ' PWD=' . escapeshellarg( $cwd ),
 			escapeshellarg( $this->expand( $command ) )
 		);
 		if ( '' !== $before ) {
