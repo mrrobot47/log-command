@@ -298,25 +298,25 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should not contain "bh-line-02"
       And the command should still be running when the timeout expires
 
-  # LOGCMD-2: --n is never validated and the exit status of tail is ignored, so an invalid
-  # line count prints tail's error but ee still exits 0.
-  @known-bug
+  # LOGCMD-2: --n was never validated and the exit status of tail was ignored, so an invalid
+  # line count printed tail's error but ee still exited 0.
   Scenario: An invalid --n value fails with a non-zero exit code
     Given the site "bh-log-command-1.test" of type "html" exists
     When I run "bin/ee log show bh-log-command-1.test --nginx --n=abc" with a timeout of 20 seconds
-    Then STDERR should contain "abc"
+    Then STDERR should contain "Invalid --n value 'abc'"
+      And STDOUT should not contain "watching logfile"
       And the command should exit with a non-zero code
 
-  # LOGCMD-1: --n and the file list are interpolated unescaped into system( "tail -n $lines -f ..." ).
-  @known-bug
+  # LOGCMD-1: --n and the file list were interpolated unescaped into system( "tail -n $lines -f ..." ).
   Scenario: --n is not interpreted by the shell
     Given the site "bh-log-command-1.test" of type "html" exists
     When I run "bin/ee log show bh-log-command-1.test --nginx --n='1 -q /dev/null; echo BH_INJ_$((6*7)); #'" with a timeout of 8 seconds
     Then STDOUT should not contain "BH_INJ_42"
+      And STDERR should contain "Invalid --n value"
+      And the command should exit with code 1
 
-  # LOGCMD-1: log file names are interpolated unescaped too; logs/php is writable by www-data in the php
-  # container, so a site's PHP code can plant a name that runs as root on the host when the admin follows the logs.
-  @known-bug
+  # LOGCMD-1: log file names were interpolated unescaped too; logs/php is writable by www-data in the php
+  # container, so a site's PHP code could plant a name that ran as root on the host when the admin followed the logs.
   Scenario: A log file name is not interpreted by the shell
     Given the site "bh-log-command-2.test" of type "php" exists
       And the file "{SITES_DIR}/bh-log-command-2.test/logs/php/bh-inj$(echo${IFS}BH_FILE_INJ_$((6*7))).log" contains:

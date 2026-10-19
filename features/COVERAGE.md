@@ -39,8 +39,8 @@ The package registers one command, `ee log`, with one subcommand, `show` (there 
 | `--n` default 10 | `tail -n 10` | log-site "The default line count is 10" |
 | `--n=<k>` / `--n=0` | Initial lines limited / none | log-site "--n limits…", "--n=0…", log-global "--cli honours --n" (exactly one ee.log line) |
 | `--n` without value | Framework warning, falls back to 10 | log-site "--n without a value…" |
-| `--n=abc` | tail error but exit 0 (LOGCMD-2) | log-site `@known-bug` "An invalid --n value…" |
-| Shell injection via `--n` or a log file name | Unescaped `system()` (LOGCMD-1) | log-site `@known-bug` "--n is not interpreted by the shell", "A log file name is not interpreted by the shell" |
+| `--n=abc` | Rejected up front, exit 1 (LOGCMD-2, fixed on `fix/escape-log-tail`) | log-site "An invalid --n value…" |
+| Shell injection via `--n` or a log file name | tail runs without a shell (LOGCMD-1, fixed on `fix/escape-log-tail`) | log-site "--n is not interpreted by the shell", "A log file name is not interpreted by the shell" |
 | Following (`tail -f`) | New lines stream until killed | log-site "New lines are streamed while following"; every happy path asserts exit 124 (still running at the timeout) |
 | Real nginx access log entry | HTTP request appears in `--access` output | log-site "A real request shows up in the nginx access log" |
 | "watching logfile" lines | `EE::log`, path shown relative to the sites dir; should be hidden by `--quiet`, isn't (core CORE-3) | all happy paths; log-site `@known-bug` "--quiet hides…" |
@@ -64,8 +64,8 @@ Estimated coverage: about 95% of the branches of `Log_Command` (every branch exc
 
 `@known-bug` scenarios assert the fixed behaviour, so they fail until the bug is fixed.
 
-- LOGCMD-1 (High): `--n` and the file list are interpolated unescaped into `system( "tail -n $lines -f $final_string" )`. `logs/php` is writable by www-data in the php container, so a planted file name like `x$(cmd).log` runs as root on the host when the admin follows the logs.
-- LOGCMD-2 (Low): `--n` is not validated and tail's exit status is ignored, so invalid values or tail failures exit 0.
+- LOGCMD-1 (High): `--n` and the file list were interpolated unescaped into `system( "tail -n $lines -f $final_string" )`. `logs/php` is writable by www-data in the php container, so a planted file name like `x$(cmd).log` ran as root on the host when the admin followed the logs. Fixed on `fix/escape-log-tail` (not merged yet); its scenarios are no longer `@known-bug`, so they fail against a develop without the fix.
+- LOGCMD-2 (Low): `--n` was not validated and tail's exit status was ignored, so invalid values or tail failures exited 0. Fixed with LOGCMD-1.
 - LOGCMD-3 (Low): `unset( $final_types['php'], $final_types['wp'] )` targets string keys of a list, so it is a no-op; html/php sites follow a `wp-content/debug.log` (and an html site would follow `logs/php`).
 - LOGCMD-4 (Low): `--global`: `$wp_logs_path` is only set for WP sites, so a non-WP site before the first WP site raises an undefined-variable warning and later ones reuse a stale path.
 - LOGCMD-5 (Low): `--global` ignores `--nginx/--php/--wp/--access/--error` (`$final_types` unused), and it also probes nonexistent `logs/access` and `logs/error` directories.
@@ -76,7 +76,7 @@ Estimated coverage: about 95% of the branches of `Log_Command` (every branch exc
 
 ## Tags and runtime
 
-- `@known-bug`: 11 scenarios (10 definitions, one outline with 2 examples). Exclude with `--tags='~@known-bug'`.
+- `@known-bug`: 8 scenarios (7 definitions, one outline with 2 examples). Exclude with `--tags='~@known-bug'`.
 - No `@le`, `@remote` or `@destructive` scenarios: the command needs no public DNS or backups and changes no global state.
 - Sites (prefix `bh-log-command-`, deleted by `@AfterFeature`, which only touches that prefix): `-1` html, `-2` php, `-3` wp, `-4` html (disabled), `-99` guaranteed absent. Sites are created lazily by `Given the site … of type … exists`, so each scenario runs on its own and only the first scenario of a feature pays for creation.
 - Every `ee log show` run is wrapped in `timeout` (own process group, so `tail` dies too); exit 124 means "still following".
