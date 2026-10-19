@@ -66,6 +66,13 @@ define( 'EE_SITE_ROOT', EE_ROOT_DIR . '/sites' );
 
 class FeatureContext implements Context
 {
+	/**
+	 * Whether this run built ee.phar/ee-old.phar, so the cleanup only removes its own files.
+	 *
+	 * @var bool
+	 */
+	private static $phar_built = false;
+
 	public $command;
 	public $commands;
 	public $webroot_path;
@@ -96,6 +103,7 @@ class FeatureContext implements Context
 			// which updates ee.phar with root privileges.
 			exec("sudo rm ee.phar");
 			copy('ee-old.phar','ee.phar');
+			self::$phar_built = true;
 			return 0;
 		}
 		exec("php -dphar.readonly=0 utils/make-phar.php ee.phar", $output, $return_status);
@@ -105,6 +113,7 @@ class FeatureContext implements Context
 
 		// Cache generaed phar as it is expensive to generate one
 		copy('ee.phar','ee-old.phar');
+		self::$phar_built = true;
 	}
 
 	/**
@@ -419,10 +428,13 @@ class FeatureContext implements Context
 			EE::launch( 'bin/ee site delete ' . escapeshellarg( $site ) . ' --yes', false, true );
 		}
 
-		foreach ( [ 'ee.phar', 'ee-old.phar' ] as $phar ) {
-			if ( file_exists( $phar ) ) {
-				unlink( $phar );
+		if ( self::$phar_built ) {
+			foreach ( [ 'ee.phar', 'ee-old.phar' ] as $phar ) {
+				if ( file_exists( $phar ) ) {
+					unlink( $phar );
+				}
 			}
+			self::$phar_built = false;
 		}
 	}
 
