@@ -2,6 +2,7 @@ Feature: ee log show --cli and --global
 
   # --cli follows {EE_ROOT_DIR}/logs/ee.log; --global follows ee.log plus every site's logs.
   # These scenarios only read ee.log; the "watching logfile" lines ee itself writes there are used as markers.
+# @known-bug scenarios assert the fixed behaviour, so they fail until the referenced issues.md entry is fixed.
   # The html site is created first on purpose: LOGCMD-4 only shows when a non-WordPress site precedes the first WordPress site.
 
   Scenario: --cli follows EasyEngine's own log
@@ -15,7 +16,7 @@ Feature: ee log show --cli and --global
   Scenario: --cli honours --n
     When I run "bin/ee log show --cli --n=1" with a timeout of 8 seconds
     Then STDOUT should contain "ee.INFO: watching logfile {EE_ROOT_DIR}/logs/ee.log"
-      And STDOUT should not contain "ee invoked"
+      And STDOUT should contain "] ee." exactly 1 time
       And the command should still be running when the timeout expires
 
   Scenario: --cli ignores a site name and type flags
@@ -73,8 +74,9 @@ Feature: ee log show --cli and --global
       And the command should still be running when the timeout expires
       And the site "bh-log-command-4.test" should be disabled
 
-  # LOGCMD-4 (proposed): in the --global loop $wp_logs_path is only assigned for WordPress sites, so a
-  # non-WordPress site before the first WordPress site hits an undefined variable (later ones reuse a stale path).
+  # LOGCMD-4: in the --global loop $wp_logs_path is only assigned for WordPress sites, so a non-WordPress site
+  # before the first WordPress site hits an undefined variable (later ones reuse a stale path). Only exposed while
+  # the html site's DB row precedes the wp site's (true when the feature runs in order).
   @known-bug
   Scenario: --global raises no PHP warnings for non-WordPress sites
     Given the site "bh-log-command-1.test" of type "html" exists
@@ -83,7 +85,7 @@ Feature: ee log show --cli and --global
     Then STDERR should not contain "wp_logs_path"
       And the command should still be running when the timeout expires
 
-  # LOGCMD-5 (proposed): --global computes the requested types but never uses them, so type filters are silently ignored.
+  # LOGCMD-5: --global computes the requested types but never uses them, so type filters are silently ignored.
   @known-bug
   Scenario: --global honours a type filter
     Given the site "bh-log-command-2.test" of type "php" exists
@@ -92,7 +94,7 @@ Feature: ee log show --cli and --global
       And STDOUT should not contain "watching logfile bh-log-command-2.test/logs/php/"
       And the command should still be running when the timeout expires
 
-  # LOGCMD-6 (proposed): the help says --global covers "all services" (and --all "service logs"),
+  # LOGCMD-6: the help says --global covers "all services" (and --all "service logs"),
   # but no service log (e.g. nginx-proxy under {EE_ROOT_DIR}/services/nginx-proxy/logs) is ever followed.
   @known-bug
   Scenario: --global includes the global nginx-proxy logs

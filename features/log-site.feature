@@ -3,6 +3,7 @@ Feature: ee log show for a single site (type filters, line count, following)
   # Sites: bh-log-command-1.test (html), bh-log-command-2.test (php), bh-log-command-3.test (wp).
   # `ee log show` ends in `tail -f`, so runs are bounded by a timeout and exit 124 means "still following".
   # Extra *.log files written by scenarios live inside the site's own log volume and are removed after each scenario.
+# @known-bug scenarios assert the fixed behaviour, so they fail until the referenced issues.md entry is fixed.
 
   Scenario: html site default shows only the nginx logs
     Given the site "bh-log-command-1.test" of type "html" exists
@@ -190,7 +191,7 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should not contain "bh-rotated"
       And the command should still be running when the timeout expires
 
-  # LOGCMD-7 (proposed): get_files() reads pathinfo()['extension'] without isset(), so a file without
+  # LOGCMD-7: get_files() reads pathinfo()['extension'] without isset(), so a file without
   # an extension in a log directory raises "Undefined array key" (PHP 8) / "Undefined index" (PHP 7.4).
   @known-bug
   Scenario: A file without an extension in a log directory does not raise PHP warnings
@@ -204,7 +205,7 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should contain "watching logfile" exactly 2 times
       And the command should still be running when the timeout expires
 
-  # LOGCMD-3 (proposed): show() does unset( $final_types['php'], $final_types['wp'] ) on a list with integer
+  # LOGCMD-3: show() does unset( $final_types['php'], $final_types['wp'] ) on a list with integer
   # keys, so the wp type is never dropped for html/php sites and a wp-content/debug.log there gets followed.
   @known-bug
   Scenario Outline: --wp is ignored for non-WordPress sites even when a debug.log exists
@@ -297,7 +298,7 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should not contain "bh-line-02"
       And the command should still be running when the timeout expires
 
-  # LOGCMD-2 (proposed): --n is never validated and the exit status of tail is ignored, so an invalid
+  # LOGCMD-2: --n is never validated and the exit status of tail is ignored, so an invalid
   # line count prints tail's error but ee still exits 0.
   @known-bug
   Scenario: An invalid --n value fails with a non-zero exit code
@@ -306,12 +307,28 @@ Feature: ee log show for a single site (type filters, line count, following)
     Then STDERR should contain "abc"
       And the command should exit with a non-zero code
 
-  # LOGCMD-1 (proposed): --n and the file list are interpolated unescaped into system( "tail -n $lines -f ..." ).
+  # LOGCMD-1: --n and the file list are interpolated unescaped into system( "tail -n $lines -f ..." ).
   @known-bug
   Scenario: --n is not interpreted by the shell
     Given the site "bh-log-command-1.test" of type "html" exists
     When I run "bin/ee log show bh-log-command-1.test --nginx --n='1 -q /dev/null; echo BH_INJ_$((6*7)); #'" with a timeout of 8 seconds
     Then STDOUT should not contain "BH_INJ_42"
+
+  # LOGCMD-1: log file names are interpolated unescaped too; logs/php is writable by www-data in the php
+  # container, so a site's PHP code can plant a name that runs as root on the host when the admin follows the logs.
+  @known-bug
+  Scenario: A log file name is not interpreted by the shell
+    Given the site "bh-log-command-2.test" of type "php" exists
+      And the file "{SITES_DIR}/bh-log-command-2.test/logs/php/bh-inj$(echo${IFS}BH_FILE_INJ_$((6*7))).log" contains:
+      """
+      bh-inj-marker
+      """
+    When I run "bin/ee log show bh-log-command-2.test --php" with a timeout of 8 seconds
+    Then STDOUT should contain "watching logfile bh-log-command-2.test/logs/php/access.log"
+      And STDOUT should not contain "BH_FILE_INJ_42"
+      And STDERR should not contain "BH_FILE_INJ_42"
+      And STDOUT should contain "bh-inj-marker"
+      And the command should still be running when the timeout expires
 
   Scenario: New lines are streamed while following
     Given the site "bh-log-command-1.test" of type "html" exists

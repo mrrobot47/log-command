@@ -16,7 +16,7 @@ The package registers one command, `ee log`, with one subcommand, `show` (there 
 | Unknown / misspelt flag | Framework "unknown --x parameter" (+ suggestion), exit 1 | log.feature "An unknown flag…", "A misspelt flag…" |
 | Extra positional | "Too many positional arguments", exit 1 | log.feature "Too many positional arguments…" |
 | `<site-name>` omitted, outside a site dir | `auto_site_name()` error, exit 1 | log.feature "Without a site name…" |
-| `<site-name>` omitted, inside a site dir | Site detected from cwd | log.feature "The site name is detected from the current directory" |
+| `<site-name>` omitted, inside a site dir | Site detected from cwd (`get_site_name()` matches the logical path; the step passes it as `PWD` because `app/` is a volume symlink) | log.feature "The site name is detected from the current directory" |
 | Unknown site | `auto_site_name()` error ("Could not find the site…") | log.feature "An unknown site is reported" |
 | Wrong name inside a site dir | "…is not a valid site-name. Did you mean…" | log.feature "A wrong site name inside a site directory…" |
 | Disabled site | `get_site_info()` "is not enabled" error | log.feature "A disabled site is refused" |
@@ -37,10 +37,10 @@ The package registers one command, `ee log`, with one subcommand, `show` (there 
 | Non-`.log` files and rotated `*.log.1` | Ignored | log-site "Files without a .log extension…" |
 | File without extension | PHP warning (LOGCMD-7) | log-site `@known-bug` "A file without an extension…" |
 | `--n` default 10 | `tail -n 10` | log-site "The default line count is 10" |
-| `--n=<k>` / `--n=0` | Initial lines limited / none | log-site "--n limits…", "--n=0…", log-global "--cli honours --n" |
+| `--n=<k>` / `--n=0` | Initial lines limited / none | log-site "--n limits…", "--n=0…", log-global "--cli honours --n" (exactly one ee.log line) |
 | `--n` without value | Framework warning, falls back to 10 | log-site "--n without a value…" |
 | `--n=abc` | tail error but exit 0 (LOGCMD-2) | log-site `@known-bug` "An invalid --n value…" |
-| `--n` shell injection | Unescaped `system()` (LOGCMD-1) | log-site `@known-bug` "--n is not interpreted by the shell" |
+| Shell injection via `--n` or a log file name | Unescaped `system()` (LOGCMD-1) | log-site `@known-bug` "--n is not interpreted by the shell", "A log file name is not interpreted by the shell" |
 | Following (`tail -f`) | New lines stream until killed | log-site "New lines are streamed while following"; every happy path asserts exit 124 (still running at the timeout) |
 | Real nginx access log entry | HTTP request appears in `--access` output | log-site "A real request shows up in the nginx access log" |
 | "watching logfile" lines | `EE::log`, path shown relative to the sites dir; hidden by `--quiet` | all happy paths; log-site "--quiet hides…" |
@@ -60,9 +60,11 @@ Side effects: the command is read-only apart from appending its "watching logfil
 
 Estimated coverage: about 95% of the branches of `Log_Command` (every branch except the unreachable missing-ee.log paths).
 
-## Suspected bugs (proposed IDs, not yet in issues.md)
+## Known bugs (`## log-command` in issues.md)
 
-- LOGCMD-1 (Low): `--n` (and the file list) are interpolated unescaped into `system( "tail -n $lines -f $final_string" )`; shell injection via `--n`.
+`@known-bug` scenarios assert the fixed behaviour, so they fail until the bug is fixed.
+
+- LOGCMD-1 (High): `--n` and the file list are interpolated unescaped into `system( "tail -n $lines -f $final_string" )`. `logs/php` is writable by www-data in the php container, so a planted file name like `x$(cmd).log` runs as root on the host when the admin follows the logs.
 - LOGCMD-2 (Low): `--n` is not validated and tail's exit status is ignored, so invalid values or tail failures exit 0.
 - LOGCMD-3 (Low): `unset( $final_types['php'], $final_types['wp'] )` targets string keys of a list, so it is a no-op; html/php sites follow a `wp-content/debug.log` (and an html site would follow `logs/php`).
 - LOGCMD-4 (Low): `--global`: `$wp_logs_path` is only set for WP sites, so a non-WP site before the first WP site raises an undefined-variable warning and later ones reuse a stale path.
@@ -73,8 +75,8 @@ Estimated coverage: about 95% of the branches of `Log_Command` (every branch exc
 
 ## Tags and runtime
 
-- `@known-bug`: 9 scenarios (8 definitions, one outline with 2 examples). Exclude with `--tags='~@known-bug'`.
+- `@known-bug`: 10 scenarios (9 definitions, one outline with 2 examples). Exclude with `--tags='~@known-bug'`.
 - No `@le`, `@remote` or `@destructive` scenarios: the command needs no public DNS or backups and changes no global state.
 - Sites (prefix `bh-log-command-`, deleted by `@AfterFeature`, which only touches that prefix): `-1` html, `-2` php, `-3` wp, `-4` html (disabled), `-99` guaranteed absent. Sites are created lazily by `Given the site … of type … exists`, so each scenario runs on its own and only the first scenario of a feature pays for creation.
 - Every `ee log show` run is wrapped in `timeout` (own process group, so `tail` dies too); exit 124 means "still following".
-- Estimated runtime: about 12 minutes (site creation ~4 minutes over the three features, WordPress dominating; ~54 scenarios at 3–10 s each).
+- Estimated runtime: about 12 minutes (site creation ~4 minutes over the three features, WordPress dominating; 55 scenarios at 3–10 s each).
