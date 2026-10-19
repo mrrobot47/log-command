@@ -13,9 +13,10 @@ Feature: ee log show --cli and --global
       And the file "{EE_ROOT_DIR}/logs/ee.log" should contain "ee.INFO: watching logfile {EE_ROOT_DIR}/logs/ee.log"
       And the command should still be running when the timeout expires
 
+  # The last ee.log line is whatever ee logged last (the tail command's debug line since log-command#8), not the INFO line.
   Scenario: --cli honours --n
     When I run "bin/ee log show --cli --n=1" with a timeout of 8 seconds
-    Then STDOUT should contain "ee.INFO: watching logfile {EE_ROOT_DIR}/logs/ee.log"
+    Then STDOUT should contain "watching logfile {EE_ROOT_DIR}/logs/ee.log"
       And STDOUT should contain "] ee." exactly 1 time
       And the command should still be running when the timeout expires
 
