@@ -264,7 +264,7 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should not contain "bh-line-02"
       And the command should still be running when the timeout expires
 
-  # LOGCMD-2: --n was never validated and the exit status of tail was ignored, so an invalid
+  # Regression check (fixed in EasyEngine/log-command#8): --n was never validated and the exit status of tail was ignored, so an invalid
   # line count printed tail's error but ee still exited 0.
   Scenario: An invalid --n value fails with a non-zero exit code
     Given the site "bh-log-command-1.test" of type "html" exists
@@ -273,7 +273,7 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should not contain "watching logfile"
       And the command should exit with a non-zero code
 
-  # LOGCMD-1: --n and the file list were interpolated unescaped into system( "tail -n $lines -f ..." ).
+  # Regression check (fixed in EasyEngine/log-command#8): --n and the file list were interpolated unescaped into system( "tail -n $lines -f ..." ).
   Scenario: --n is not interpreted by the shell
     Given the site "bh-log-command-1.test" of type "html" exists
     When I run "bin/ee log show bh-log-command-1.test --nginx --n='1 -q /dev/null; echo BH_INJ_$((6*7)); #'" with a timeout of 8 seconds
@@ -281,7 +281,7 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDERR should contain "Invalid --n value"
       And the command should exit with code 1
 
-  # LOGCMD-1: log file names were interpolated unescaped too; logs/php is writable by www-data in the php
+  # Regression check (same fix): log file names were interpolated unescaped too; logs/php is writable by www-data in the php
   # container, so a site's PHP code could plant a name that ran as root on the host when the admin followed the logs.
   Scenario: A log file name is not interpreted by the shell
     Given the site "bh-log-command-2.test" of type "php" exists
@@ -296,7 +296,7 @@ Feature: ee log show for a single site (type filters, line count, following)
       And STDOUT should contain "bh-inj-marker"
       And the command should still be running when the timeout expires
 
-  # LOGCMD-9: the site's containers can write to its log directories and wp-content, and ee log show runs tail as
+  # Regression check (fixed in EasyEngine/log-command#8): the site's containers can write to its log directories and wp-content, and ee log show runs tail as
   # root on the host, so a link planted there must not be followed out of the directory.
   Scenario Outline: A log link that leaves the site's log directory is skipped
     Given the site "<site>" of type "<type>" exists

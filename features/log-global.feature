@@ -2,7 +2,7 @@ Feature: ee log show --cli and --global
 
   # --cli follows {EE_ROOT_DIR}/logs/ee.log; --global follows ee.log plus every site's logs.
   # These scenarios only read ee.log; the "watching logfile" lines ee itself writes there are used as markers.
-  # The html site is created first on purpose: LOGCMD-4 only shows when a non-WordPress site precedes the first WordPress site.
+  # The html site is created first on purpose: the undefined `$wp_logs_path` bug only shows when a non-WordPress site precedes the first WordPress site.
 
   Scenario: --cli follows EasyEngine's own log
     Given the file "{EE_ROOT_DIR}/logs/ee.log" should exist
@@ -74,9 +74,9 @@ Feature: ee log show --cli and --global
       And the command should still be running when the timeout expires
       And the site "bh-log-command-4.test" should be disabled
 
-  # LOGCMD-4: in the --global loop $wp_logs_path is only assigned for WordPress sites, so a non-WordPress site
+  # Regression check (fixed in EasyEngine/log-command#8): in the --global loop $wp_logs_path is only assigned for WordPress sites, so a non-WordPress site
   # before the first WordPress site hits an undefined variable (later ones reuse a stale path). Only exposed while
-  # the html site's DB row precedes the wp site's (true when the feature runs in order). Fixed with LOGCMD-9.
+  # the html site's DB row precedes the wp site's (true when the feature runs in order).
   Scenario: --global raises no PHP warnings for non-WordPress sites
     Given the site "bh-log-command-1.test" of type "html" exists
       And the site "bh-log-command-3.test" of type "wp" exists
